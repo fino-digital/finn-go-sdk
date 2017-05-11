@@ -24,7 +24,8 @@ var URLs = map[string]string{
 	"testing": "https://dashboard-testing.hellofinn.de/api/v0",
 	"prod":    "https://dashboard.hellofinn.de/api/v0",
 	// only for staff
-	"dev": "https://dashboard-dev.hellofinn.de/api/v0"}
+	"dev":   "https://dashboard-dev.hellofinn.de/api/v0",
+	"local": "http://localhost:8080/api/v0"}
 
 var helloFinnRoutePing = "/ping"
 var helloFinnRoutePartner = "/partner"
@@ -54,8 +55,16 @@ func main() {
 
 	// check if flags are complete
 	if *name == "" || *country == "" || *state == "" || *location == "" || *email == "" {
-		log.Println("ERROR: please use -name <name> -country <country> -state <state> -location <location> -email <email>")
-		return
+		panic("ERROR: please use -name <name> -country <country> -state <state> -location <location> -email <email>")
+	}
+
+	// build request to register
+	partnerData := PartnerData{
+		Name:     *name,
+		Country:  *country,
+		State:    *state,
+		Location: *location,
+		Email:    *email,
 	}
 
 	// check environment
@@ -63,8 +72,7 @@ func main() {
 	if *env != "" {
 		URL = URLs[*env]
 		if URL == "" {
-			log.Println("please use for -env: dev, testing or prod. Nothing is prod!")
-			return
+			panic("please use for -env: dev, testing or prod. Nothing is prod!")
 		}
 	}
 	// if env == dev -> ask user for password
@@ -78,26 +86,34 @@ func main() {
 	}
 
 	// check if hellofinn.de is accessible
+	helloFinnServerCheck(URL)
+
+	// register
+	partnerID, password := register(URL, partnerData, header)
+	log.Println("Your partnerID:", partnerID)
+	log.Println("Your password:", password)
+
+	// login
+	login(URL, *email, password, &header)
+
+	log.Println("SUCCESSFUL")
+}
+
+// check if hellofinn.de is accessible
+func helloFinnServerCheck(URL string) {
 	pingRequest, _ := http.NewRequest("GET", URL+helloFinnRoutePing, nil)
 	pingResponse, err := (&http.Client{}).Do(pingRequest)
 	if err != nil || pingResponse.StatusCode != 200 {
-		log.Println("ERROR: There is something wrong. Check your internet-connection..")
 		if pingResponse != nil {
 			defer pingResponse.Body.Close()
 			pingResponseBody, _ := ioutil.ReadAll(pingResponse.Body)
 			log.Println("Failure:", pingResponse.StatusCode, "-", string(pingResponseBody))
 		}
-		return
+		panic("ERROR: There is something wrong. Check your internet-connection..")
 	}
+}
 
-	// build request to register
-	partnerData := PartnerData{
-		Name:     *name,
-		Country:  *country,
-		State:    *state,
-		Location: *location,
-		Email:    *email,
-	}
+func register(URL string, partnerData PartnerData, header http.Header) (string, string) {
 	partnerDataByte, _ := json.Marshal(partnerData)
 
 	// fire up request
@@ -107,8 +123,7 @@ func main() {
 	if err != nil || registerResponse.StatusCode != 200 {
 		defer registerResponse.Body.Close()
 		registerResponseBody, _ := ioutil.ReadAll(registerResponse.Body)
-		log.Println("ERROR: Something is going wrong. Failure:", registerResponse.StatusCode, "-", string(registerResponseBody))
-		return
+		panic("ERROR: Something is going wrong. Failure: " + string(registerResponse.StatusCode) + " - " + string(registerResponseBody))
 	}
 
 	// try to get userID
@@ -118,29 +133,27 @@ func main() {
 	partnerID, ok := jsonParsed.Path("data.id").Data().(string)
 	password, ok := jsonParsed.Path("data.password").Data().(string)
 	if err != nil || !ok {
-		log.Println("ERROR: Failure while parsing responseBody:", registerResponse.StatusCode, "-", string(registerResponseBody))
+		panic("ERROR: Failure while parsing responseBody: " + string(registerResponse.StatusCode) + " - " + string(registerResponseBody))
 	}
-	log.Println("Your partnerID:", partnerID)
-	log.Println("Your password:", password)
 
-	// login
-	loginRequestBytes, _ := json.Marshal(map[string]string{"email": *email, "password": password})
+	return partnerID, password
+}
+
+func login(URL string, email string, password string, header *http.Header) {
+	loginRequestBytes, _ := json.Marshal(map[string]string{"email": email, "password": password})
 	loginRequest, _ := http.NewRequest("POST", URL+helloFinnRouteLogin, bytes.NewReader(loginRequestBytes))
 	loginResponse, err := (&http.Client{}).Do(loginRequest)
 	if err != nil || loginResponse.StatusCode != 200 {
-		log.Println("ERROR: There is something wrong with login..")
 		if loginResponse != nil {
 			defer loginResponse.Body.Close()
 			loginResponseBody, _ := ioutil.ReadAll(loginResponse.Body)
 			log.Println("Failure:", loginResponse.StatusCode, "-", string(loginResponseBody))
 		}
-		return
+		panic("ERROR: There is something wrong with login..")
 	}
 
 	// try to get headers
 	defer loginResponse.Body.Close()
 	loginResponseBody, _ := ioutil.ReadAll(loginResponse.Body)
 	log.Println(string(loginResponseBody))
-
-	log.Println("SUCCESSFUL")
 }
