@@ -28,6 +28,7 @@ var URLs = map[string]string{
 
 var helloFinnRoutePing = "/ping"
 var helloFinnRoutePartner = "/partner"
+var helloFinnRouteLogin = "/login"
 
 type PartnerData struct {
 	Name     string `json:"name"`
@@ -121,6 +122,25 @@ func main() {
 	}
 	log.Println("Your partnerID:", partnerID)
 	log.Println("Your password:", password)
+
+	// login
+	loginRequestBytes, _ := json.Marshal(map[string]string{"email": *email, "password": password})
+	loginRequest, _ := http.NewRequest("POST", URL+helloFinnRouteLogin, bytes.NewReader(loginRequestBytes))
+	loginResponse, err := (&http.Client{}).Do(loginRequest)
+	if err != nil || loginResponse.StatusCode != 200 {
+		log.Println("ERROR: There is something wrong with login..")
+		if loginResponse != nil {
+			defer loginResponse.Body.Close()
+			loginResponseBody, _ := ioutil.ReadAll(loginResponse.Body)
+			log.Println("Failure:", loginResponse.StatusCode, "-", string(loginResponseBody))
+		}
+		return
+	}
+
+	// try to get headers
+	defer loginResponse.Body.Close()
+	loginResponseBody, _ := ioutil.ReadAll(loginResponse.Body)
+	log.Println(string(loginResponseBody))
 
 	log.Println("SUCCESSFUL")
 }
