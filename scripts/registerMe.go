@@ -1,15 +1,14 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
+
+	"golang.org/x/crypto/ssh/terminal"
 
 	"crypto/sha256"
 
@@ -70,11 +69,10 @@ func main() {
 	// if env == dev -> ask user for password
 	header := http.Header{}
 	if *env == "dev" {
-		reader := bufio.NewReader(os.Stdin)
-		fmt.Print("Environment 'dev' is for hellofinn-staff only.\nPlease enter passphrase: ")
-		passphrase, _ := reader.ReadString('\n')
+		log.Println("Environment 'dev' is for hellofinn-staff only. Please enter passphrase: ")
+		passphrase, _ := terminal.ReadPassword(0)
 		hasher := sha256.New()
-		hasher.Write([]byte(passphrase))
+		hasher.Write(passphrase)
 		header.Add("X-HelloFinn-Admin", base64.URLEncoding.EncodeToString([]byte(hex.EncodeToString(hasher.Sum(nil)))))
 	}
 
@@ -117,10 +115,12 @@ func main() {
 	registerResponseBody, _ := ioutil.ReadAll(registerResponse.Body)
 	jsonParsed, err := gabs.ParseJSON(registerResponseBody)
 	partnerID, ok := jsonParsed.Path("data.id").Data().(string)
+	password, ok := jsonParsed.Path("data.password").Data().(string)
 	if err != nil || !ok {
 		log.Println("ERROR: Failure while parsing responseBody:", registerResponse.StatusCode, "-", string(registerResponseBody))
 	}
 	log.Println("Your partnerID:", partnerID)
+	log.Println("Your password:", password)
 
 	log.Println("SUCCESSFUL")
 }
