@@ -96,10 +96,13 @@ func main() {
 	// login
 	login(URL, *email, password, &header)
 
+	log.Println(header)
+
 	log.Println("SUCCESSFUL")
 }
 
-// check if hellofinn.de is accessible
+// Check if hellofinn.de-Server is accessible.
+// For this case there is an '/ping'-Endpoint.
 func helloFinnServerCheck(URL string) {
 	pingRequest, _ := http.NewRequest("GET", URL+helloFinnRoutePing, nil)
 	pingResponse, err := (&http.Client{}).Do(pingRequest)
@@ -113,6 +116,10 @@ func helloFinnServerCheck(URL string) {
 	}
 }
 
+// Post the partnerData to the register-Endpoint.
+// The Dashboard returns a partnerID and a password.
+// PartnerID and password is needed for login
+// You can reset the password.. later!
 func register(URL string, partnerData PartnerData, header http.Header) (string, string) {
 	partnerDataByte, _ := json.Marshal(partnerData)
 
@@ -139,6 +146,13 @@ func register(URL string, partnerData PartnerData, header http.Header) (string, 
 	return partnerID, password
 }
 
+// Login to the dashboard.
+// Response contains:
+// -> partnerID
+// -> headerHash
+// -> headerTimestamp
+//
+// Put this all to the header. So this can be used for all other requests.
 func login(URL string, email string, password string, header *http.Header) {
 	loginRequestBytes, _ := json.Marshal(map[string]string{"email": email, "password": password})
 	loginRequest, _ := http.NewRequest("POST", URL+helloFinnRouteLogin, bytes.NewReader(loginRequestBytes))
@@ -155,5 +169,11 @@ func login(URL string, email string, password string, header *http.Header) {
 	// try to get headers
 	defer loginResponse.Body.Close()
 	loginResponseBody, _ := ioutil.ReadAll(loginResponse.Body)
-	log.Println(string(loginResponseBody))
+	var hmacHeader map[string]string
+	json.Unmarshal(loginResponseBody, &hmacHeader)
+
+	// add all hmacHeader to header
+	for k, v := range hmacHeader {
+		header.Add(k, v)
+	}
 }
