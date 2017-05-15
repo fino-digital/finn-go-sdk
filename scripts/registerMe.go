@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 
 	"golang.org/x/crypto/ssh/terminal"
@@ -78,7 +78,7 @@ func main() {
 	// if env == dev -> ask user for password
 	header := http.Header{}
 	if *env == "dev" {
-		log.Println("Environment 'dev' is for hellofinn-staff only. Please enter passphrase: ")
+		fmt.Println("Environment 'dev' is for hellofinn-staff only. Please enter passphrase: ")
 		passphrase, _ := terminal.ReadPassword(0)
 		hasher := sha256.New()
 		hasher.Write(passphrase)
@@ -86,19 +86,22 @@ func main() {
 	}
 
 	// check if hellofinn.de is accessible
+	fmt.Println("-> check hellofinn.de - Server")
 	helloFinnServerCheck(URL)
 
 	// register
+	fmt.Println("-> register User", partnerData.Name, "on stage", env)
 	partnerID, password := register(URL, partnerData, header)
-	log.Println("Your partnerID:", partnerID)
-	log.Println("Your password:", password)
+	fmt.Println("-------IMPORTANT-------")
+	fmt.Println("Your partnerID:", partnerID)
+	fmt.Println("Your password:", password)
+	fmt.Println("-----------------------")
 
 	// login
+	fmt.Println("-> login with partnerID and password")
 	login(URL, *email, password, &header)
 
-	log.Println(header)
-
-	log.Println("SUCCESSFUL")
+	fmt.Println("SUCCESSFUL")
 }
 
 // Check if hellofinn.de-Server is accessible.
@@ -110,7 +113,7 @@ func helloFinnServerCheck(URL string) {
 		if pingResponse != nil {
 			defer pingResponse.Body.Close()
 			pingResponseBody, _ := ioutil.ReadAll(pingResponse.Body)
-			log.Println("Failure:", pingResponse.StatusCode, "-", string(pingResponseBody))
+			fmt.Println("Failure:", pingResponse.StatusCode, "-", string(pingResponseBody))
 		}
 		panic("ERROR: There is something wrong. Check your internet-connection..")
 	}
@@ -161,7 +164,7 @@ func login(URL string, email string, password string, header *http.Header) {
 		if loginResponse != nil {
 			defer loginResponse.Body.Close()
 			loginResponseBody, _ := ioutil.ReadAll(loginResponse.Body)
-			log.Println("Failure:", loginResponse.StatusCode, "-", string(loginResponseBody))
+			fmt.Println("Failure:", loginResponse.StatusCode, "-", string(loginResponseBody))
 		}
 		panic("ERROR: There is something wrong with login..")
 	}
