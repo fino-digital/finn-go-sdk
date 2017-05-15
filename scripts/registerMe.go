@@ -169,11 +169,9 @@ func login(URL string, email string, password string, header *http.Header) {
 	// try to get headers
 	defer loginResponse.Body.Close()
 	loginResponseBody, _ := ioutil.ReadAll(loginResponse.Body)
-	var hmacHeader map[string]string
-	json.Unmarshal(loginResponseBody, &hmacHeader)
-
-	// add all hmacHeader to header
-	for k, v := range hmacHeader {
-		header.Add(k, v)
+	jsonParsed, err := gabs.ParseJSON(loginResponseBody)
+	children, _ := jsonParsed.S("data").ChildrenMap()
+	for key, value := range children {
+		header.Add(key, value.Data().(string))
 	}
 }
