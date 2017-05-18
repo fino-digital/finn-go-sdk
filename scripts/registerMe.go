@@ -16,6 +16,10 @@ import (
 
 	"encoding/hex"
 
+	"os"
+
+	"io"
+
 	"github.com/Jeffail/gabs"
 )
 
@@ -27,9 +31,12 @@ var URLs = map[string]string{
 	"dev":   "https://dashboard-dev.hellofinn.de/api/v0",
 	"local": "http://localhost:8080/api/v0"}
 
-var helloFinnRoutePing = "/ping"
-var helloFinnRoutePartner = "/partner"
-var helloFinnRouteLogin = "/login"
+const (
+	helloFinnRoutePing         = "/ping"
+	helloFinnRoutePartner      = "/partner"
+	helloFinnRouteLogin        = "/login"
+	helloFinnRouteClientConfig = "/ca/clientconfig"
+)
 
 type PartnerData struct {
 	Name     string `json:"name"`
@@ -100,6 +107,10 @@ func main() {
 	// login
 	fmt.Println("-> login with partnerID and password")
 	login(URL, *email, password, &header)
+
+	// download config
+	fmt.Println("-> download config")
+	downloadConfig(URL, header)
 
 	fmt.Println("SUCCESSFUL")
 }
@@ -176,5 +187,40 @@ func login(URL string, email string, password string, header *http.Header) {
 	children, _ := jsonParsed.S("data").ChildrenMap()
 	for key, value := range children {
 		header.Add(key, value.Data().(string))
+	}
+}
+
+// Downloads the client config.
+// You need a login to do this request
+func downloadConfig(URL string, header http.Header) {
+	downloadConfigRequest, _ := http.NewRequest("GET", URL+helloFinnRouteClientConfig, nil)
+	downloadConfigRequest.Header = header
+
+	// do request
+	resp, err := (&http.Client{}).Do(downloadConfigRequest)
+
+	// download file
+	out, err := os.Create("client.cnf")
+	if err != nil {
+		fmt.Println("ERROR: Can't create file: ")
+		panic(err)
+	}
+	defer out.Close()
+
+	// parse response
+	defer resp.Body.Close()
+	downloadClientResponseBody, _ := ioutil.ReadAll(resp.Body)
+	jsonParsed, err := gabs.ParseJSON(downloadClientResponseBody)
+	cnf, ok := jsonParsed.Path("data.cnf").Data().(string)
+	if !ok || err != nil {
+		fmt.Println("ERROR: Can't parse data")
+		panic(err)
+	}
+
+	// copy cnf to file
+	_, err = io.Copy(out, bytes.NewReader([]byte(cnf)))
+	if err != nil {
+		fmt.Println("ERROR: Can't copy file: ")
+		panic(err)
 	}
 }
